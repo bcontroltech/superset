@@ -85,6 +85,10 @@ const DatasetList = lazy(
   () => import(/* webpackChunkName: "DatasetList" */ 'src/pages/DatasetList'),
 );
 
+const ImportFileList = lazy(
+  () => import(/* webpackChunkName: "ImportFileList" */ 'src/pages/Import'),
+);
+
 const DatasetCreation = lazy(
   () =>
     import(
@@ -218,6 +222,10 @@ export const routes: Routes = [
   {
     path: '/tablemodelview/list/',
     Component: DatasetList,
+  },
+  {
+    path: '/superset/import/',
+    Component: ImportFileList,
   },
   {
     path: '/databaseview/list/',

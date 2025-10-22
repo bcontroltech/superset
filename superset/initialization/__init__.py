@@ -177,6 +177,7 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
         from superset.explore.permalink.api import ExplorePermalinkRestApi
         from superset.extensions.view import ExtensionsView
         from superset.importexport.api import ImportExportRestApi
+        from superset.imported_files.api import ImportedFileRestApi, PipelineRestApi
         from superset.queries.api import QueryRestApi
         from superset.queries.saved_queries.api import SavedQueryRestApi
         from superset.reports.api import ReportScheduleRestApi
@@ -227,6 +228,7 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
         from superset.views.user_registrations import UserRegistrationsView
         from superset.views.users.api import CurrentUserRestApi, UserRestApi
         from superset.views.users_list import UsersListView
+        from superset.views.import_view import ImportView
 
         set_app_error_handlers(self.superset_app)
         self.register_request_handlers()
@@ -264,6 +266,8 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
         appbuilder.add_api(ExploreFormDataRestApi)
         appbuilder.add_api(ExplorePermalinkRestApi)
         appbuilder.add_api(ImportExportRestApi)
+        appbuilder.add_api(ImportedFileRestApi)
+        appbuilder.add_api(PipelineRestApi)
         appbuilder.add_api(QueryRestApi)
         appbuilder.add_api(ReportScheduleRestApi)
         appbuilder.add_api(ReportExecutionLogRestApi)
@@ -323,6 +327,16 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
             label=_("Datasets"),
             href=f"{app_root}/tablemodelview/list/",
             icon="fa-table",
+            category="",
+            category_icon="",
+        )
+
+        # Add Import menu item
+        appbuilder.add_view(
+            ImportView,
+            "Import",
+            label=_("Import"),
+            icon="fa-upload",
             category="",
             category_icon="",
         )
