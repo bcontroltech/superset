@@ -24,8 +24,12 @@ from superset.models.helpers import AuditMixinNullable, ImportExportMixin
 
 class Pipeline(Model, AuditMixinNullable, ImportExportMixin):
     """
-    ORM model for pipeline configurations
+    Pipeline model for organizing imported files by business category.
+    
+    This model defines predefined business categories in Portuguese for organizing
+    imported files in the Superset file import system.
     """
+    """A collection of ORM models for pipeline configurations"""
 
     __tablename__ = "pipelines"
 
