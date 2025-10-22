@@ -52,9 +52,11 @@ jobs:
 
       - name: Check for file changes
         id: check
-        uses: ./.github/actions/change-detector/
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Always set outputs to true to force Docker builds
+          echo "python=true" >> $GITHUB_OUTPUT
+          echo "frontend=true" >> $GITHUB_OUTPUT
+          echo "docker=true" >> $GITHUB_OUTPUT
 
       - name: Setup Docker Environment
         if: steps.check.outputs.python || steps.check.outputs.frontend || steps.check.outputs.docker
@@ -183,9 +185,11 @@ jobs:
           persist-credentials: false
       - name: Check for file changes
         id: check
-        uses: ./.github/actions/change-detector/
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Always set outputs to true to force Docker builds
+          echo "python=true" >> $GITHUB_OUTPUT
+          echo "frontend=true" >> $GITHUB_OUTPUT
+          echo "docker=true" >> $GITHUB_OUTPUT
       - name: Setup Docker Environment
         if: steps.check.outputs.docker
         uses: ./.github/actions/setup-docker
