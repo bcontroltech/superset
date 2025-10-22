@@ -3,6 +3,7 @@ name: Build & publish docker images to GHCR
 on:
   push:
     branches:
+      - "master"
       - "import-file"
       - "[0-9].[0-9]*"
     tags:
@@ -151,14 +152,14 @@ jobs:
           echo "| GHCR | \`$IMAGE_TAG\` | Build artifact |" >> $GITHUB_STEP_SUMMARY
           
           if [[ "${{ github.ref }}" =~ ^refs/tags/[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-            echo "| GHCR | \`ghcr.io/${{ github.repository_owner }}/superset:${{ github.ref_name }}-${{ matrix.build_preset }}\` | Release version |" >> $GITHUB_STEP_SUMMARY
+            echo "| GHCR | \`ghcr.io/${{ github.repository_owner }}/superset-bct:${{ github.ref_name }}-${{ matrix.build_preset }}\` | Release version |" >> $GITHUB_STEP_SUMMARY
             if [ "${{ matrix.build_preset }}" = "dev" ]; then
-              echo "| GHCR | \`ghcr.io/${{ github.repository_owner }}/superset:${{ github.ref_name }}\` | Clean release version |" >> $GITHUB_STEP_SUMMARY
+              echo "| GHCR | \`ghcr.io/${{ github.repository_owner }}/superset-bct:${{ github.ref_name }}\` | Clean release version |" >> $GITHUB_STEP_SUMMARY
             fi
           fi
           
           if [ "${{ github.ref }}" = "refs/heads/master" ] && [ "${{ matrix.build_preset }}" = "dev" ]; then
-            echo "| GHCR | \`ghcr.io/${{ github.repository_owner }}/superset:latest\` | Latest stable |" >> $GITHUB_STEP_SUMMARY
+            echo "| GHCR | \`ghcr.io/${{ github.repository_owner }}/superset-bct:latest\` | Latest stable |" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: docker-compose sanity check
