@@ -1,10 +1,13 @@
-name: Build & publish docker images
+name: Build & publish docker images to GHCR
 
 on:
   push:
     branches:
-      - "master"
+      - "import-file"
       - "[0-9].[0-9]*"
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+-*"
   pull_request:
     branches:
       - "master"
@@ -35,9 +38,9 @@ jobs:
         build_preset: ${{fromJson(needs.setup_matrix.outputs.matrix_config)}}
       fail-fast: false
     env:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      IMAGE_TAG: apache/superset:GHA-${{ matrix.build_preset }}-${{ github.run_id }}
+      IMAGE_TAG: ghcr.io/${{ github.repository_owner }}/superset-bct:${{ matrix.build_preset }}-${{ github.run_id }}
+      # Extract version from tag if this is a tag push
+      VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.run_id }}
 
     steps:
 
@@ -56,9 +59,15 @@ jobs:
         if: steps.check.outputs.python || steps.check.outputs.frontend || steps.check.outputs.docker
         uses: ./.github/actions/setup-docker
         with:
-          dockerhub-user: ${{ secrets.DOCKERHUB_USER }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
           build: "true"
+
+      - name: Log in to GitHub Container Registry
+        if: steps.check.outputs.python || steps.check.outputs.frontend || steps.check.outputs.docker
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup supersetbot
         if: steps.check.outputs.python || steps.check.outputs.frontend || steps.check.outputs.docker
@@ -85,21 +94,72 @@ jobs:
             --preset ${{ matrix.build_preset }} \
             --context "$EVENT" \
             --context-ref "$RELEASE" $FORCE_LATEST \
-            --extra-flags "--build-arg INCLUDE_CHROMIUM=false --tag $IMAGE_TAG" \
+            --extra-flags "--build-arg INCLUDE_CHROMIUM=false --tag $IMAGE_TAG --label org.opencontainers.image.source=https://github.com/${{ github.repository }} --label org.opencontainers.image.revision=${{ github.sha }} --label org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             $PLATFORM_ARG
 
-      # in the context of push (using multi-platform build), we need to pull the image locally
-      - name: Docker pull
+      - name: Push to GitHub Container Registry
         if: github.event_name == 'push' && (steps.check.outputs.python || steps.check.outputs.frontend || steps.check.outputs.docker)
-        run:  docker pull $IMAGE_TAG
+        run: |
+          # Push the built image to GHCR
+          docker push $IMAGE_TAG
+          
+          # Handle release tags (semantic versioning)
+          if [[ "${{ github.ref }}" =~ ^refs/tags/[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            VERSION_TAG=ghcr.io/${{ github.repository_owner }}/superset-bct:${{ github.ref_name }}-${{ matrix.build_preset }}
+            docker tag $IMAGE_TAG $VERSION_TAG
+            docker push $VERSION_TAG
+            
+            # For dev preset, also tag without preset suffix for cleaner release tags
+            if [ "${{ matrix.build_preset }}" = "dev" ]; then
+              CLEAN_VERSION_TAG=ghcr.io/${{ github.repository_owner }}/superset-bct:${{ github.ref_name }}
+              docker tag $IMAGE_TAG $CLEAN_VERSION_TAG
+              docker push $CLEAN_VERSION_TAG
+            fi
+          fi
+          
+          # Tag as latest for the main branch builds (dev preset)
+          if [ "${{ github.ref }}" = "refs/heads/master" ] && [ "${{ matrix.build_preset }}" = "dev" ]; then
+            GHCR_LATEST_TAG=ghcr.io/${{ github.repository_owner }}/superset-bct:latest
+            docker tag $IMAGE_TAG $GHCR_LATEST_TAG
+            docker push $GHCR_LATEST_TAG
+          fi
+          
+          # Tag with branch name for feature branches
+          if [[ "${{ github.ref }}" =~ ^refs/heads/ ]] && [ "${{ github.ref }}" != "refs/heads/master" ]; then
+            BRANCH_NAME=$(echo ${{ github.ref }} | sed 's/refs\/heads\///')
+            GHCR_BRANCH_TAG=ghcr.io/${{ github.repository_owner }}/superset-bct:${BRANCH_NAME}-${{ matrix.build_preset }}
+            docker tag $IMAGE_TAG $GHCR_BRANCH_TAG
+            docker push $GHCR_BRANCH_TAG
+          fi
 
       - name: Print docker stats
         if: steps.check.outputs.python || steps.check.outputs.frontend || steps.check.outputs.docker
         run: |
           echo "SHA: ${{ github.sha }}"
           echo "IMAGE: $IMAGE_TAG"
+          echo "REFERENCE: ${{ github.ref }}"
+          echo "VERSION: $VERSION"
           docker images $IMAGE_TAG
           docker history $IMAGE_TAG
+
+      - name: Output pushed image tags
+        if: github.event_name == 'push' && (steps.check.outputs.python || steps.check.outputs.frontend || steps.check.outputs.docker)
+        run: |
+          echo "## 🐳 Pushed Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "| Registry | Tag | Description |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-----|-------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| GHCR | \`$IMAGE_TAG\` | Build artifact |" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ github.ref }}" =~ ^refs/tags/[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "| GHCR | \`ghcr.io/${{ github.repository_owner }}/superset:${{ github.ref_name }}-${{ matrix.build_preset }}\` | Release version |" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ matrix.build_preset }}" = "dev" ]; then
+              echo "| GHCR | \`ghcr.io/${{ github.repository_owner }}/superset:${{ github.ref_name }}\` | Clean release version |" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          if [ "${{ github.ref }}" = "refs/heads/master" ] && [ "${{ matrix.build_preset }}" = "dev" ]; then
+            echo "| GHCR | \`ghcr.io/${{ github.repository_owner }}/superset:latest\` | Latest stable |" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: docker-compose sanity check
         if: (steps.check.outputs.python || steps.check.outputs.frontend || steps.check.outputs.docker) && matrix.build_preset == 'dev'
@@ -129,8 +189,6 @@ jobs:
         if: steps.check.outputs.docker
         uses: ./.github/actions/setup-docker
         with:
-          dockerhub-user: ${{ secrets.DOCKERHUB_USER }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
           build: "false"
           install-docker-compose: "true"
       - name: docker-compose sanity check
